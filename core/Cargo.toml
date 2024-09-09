@@ -1,0 +1,8 @@
+[package]
+name = "text_editor_core"
+authors.workspace = true
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ropey.workspace = true

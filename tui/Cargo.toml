@@ -1,0 +1,9 @@
+[package]
+name = "text_editor_tui"
+authors.workspace = true
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core.workspace = true
+ratatui.workspace = true
