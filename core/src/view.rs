@@ -2,11 +2,26 @@ use ropey::Rope;
 
 use crate::cursor::{Cursor, MoveCursor};
 
+pub trait View {
+    /// Inserts [`text`] into the buffer, shifting the cursor by `text.len()`
+    fn insert(&mut self, text: &str) -> Result<(), ropey::Error>; // TODO: use a custom error type
+
+    /// Inserts a char into the buffer, shifting the cursor by `1`
+    fn insert_char(&mut self, c: char) -> Result<(), ropey::Error>; // TODO: use a custom error type
+
+    /// Removes a char at the cursor.
+    /// [`prev`] is used for `Backspace`
+    fn remove(&mut self, prev: bool) -> Result<(), ropey::Error>; // TODO: use a custom error type
+
+    /// A reference to the cursor
+    fn cursor(&self) -> &Cursor;
+}
+
 pub struct TextView {
     pub buffer: Rope,
 
-    pub cursor: Cursor,
-    pub selection: Option<Cursor>,
+    cursor: Cursor,
+    selection: Option<Cursor>,
 }
 
 impl TextView {
@@ -22,8 +37,10 @@ impl TextView {
     pub fn from_str(text: &str) -> Self {
         Self::new(Rope::from_str(text))
     }
+}
 
-    pub fn insert(&mut self, text: &str) -> Result<(), ropey::Error> {
+impl View for TextView {
+    fn insert(&mut self, text: &str) -> Result<(), ropey::Error> {
         let line_start = self.buffer.line_to_char(self.cursor.row);
         let result = self.buffer.try_insert(line_start + self.cursor.col, text);
 
@@ -31,7 +48,7 @@ impl TextView {
         result
     }
 
-    pub fn insert_char(&mut self, c: char) -> Result<(), ropey::Error> {
+    fn insert_char(&mut self, c: char) -> Result<(), ropey::Error> {
         let line_start = self.buffer.line_to_char(self.cursor.row);
         let result = self.buffer.try_insert_char(line_start + self.cursor.col, c);
 
@@ -44,36 +61,43 @@ impl TextView {
         result
     }
 
-    pub fn remove(&mut self) -> Result<(), ropey::Error> {
-        if self.cursor.row == 0 && self.cursor.col == 0 {
-            return Ok(());
-        }
+    fn remove(&mut self, prev: bool) -> Result<(), ropey::Error> {
+        if prev {
+            if self.cursor.row == 0 && self.cursor.col == 0 {
+                return Ok(());
+            }
 
-        let line_start = self.buffer.line_to_char(self.cursor.row);
-        let idx = line_start + self.cursor.col - 1;
-        self.move_cursor(MoveCursor::Left(1));
+            let line_start = self.buffer.line_to_char(self.cursor.row);
+            let idx = line_start + self.cursor.col - 1;
+            self.move_cursor(MoveCursor::Left(1));
 
-        if let Some(selection_cursor) = self.selection.as_ref() {
-            let line_start = self.buffer.line_to_char(selection_cursor.row);
-            let end_idx = line_start + selection_cursor.col - 1;
-            self.buffer.try_remove(idx..=end_idx)
+            if let Some(selection_cursor) = self.selection.as_ref() {
+                let line_start = self.buffer.line_to_char(selection_cursor.row);
+                let end_idx = line_start + selection_cursor.col - 1;
+                self.buffer.try_remove(idx..=end_idx)
+            } else {
+                self.buffer.try_remove(idx..=idx)
+            }
         } else {
+            if self.cursor.col >= self.buffer.line(self.cursor.row).len_chars() {
+                return Ok(());
+            }
+
+            let line_start = self.buffer.line_to_char(self.cursor.row);
+            let idx = line_start + self.cursor.col;
+
             self.buffer.try_remove(idx..=idx)
         }
     }
 
-    pub fn remove_front(&mut self) -> Result<(), ropey::Error> {
-        let line_start = self.buffer.line_to_char(self.cursor.row);
-        let idx = line_start + self.cursor.col;
-        if idx >= self.buffer.line(self.cursor.row).len_chars() {
-            return Ok(());
-        }
-
-        self.buffer.try_remove(idx..=idx)
+    fn cursor(&self) -> &Cursor {
+        &self.cursor
     }
+}
 
-    pub fn line_end_index(&self, i: usize) -> usize {
-        let line = self.buffer.line(i);
+impl TextView {
+    pub fn line_end_index(&self, row: usize) -> usize {
+        let line = self.buffer.line(row);
         let mut idx = line.len_chars();
         if idx != 0 && line.char(idx - 1) == '\n' {
             idx -= 1;
@@ -142,6 +166,12 @@ impl TextView {
                 }
 
                 self.cursor.col = self.cursor.ghost_col;
+            }
+            MoveCursor::Home => {
+                self.cursor.set_column(0);
+            }
+            MoveCursor::End => {
+                self.cursor.set_column(self.line_end_index(self.cursor.row));
             }
         }
     }

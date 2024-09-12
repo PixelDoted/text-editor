@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
   "core"
-, "tui"]
+, "plugin", "tui"]
 
 [workspace.package]
 authors = ["PixelDoted"]
@@ -10,9 +10,11 @@ authors = ["PixelDoted"]
 [workspace.dependencies]
 # Core
 ropey = "1.6"
-
-# Front End
 core = { package = "text_editor_core", path = "./core" }
+
+# Plugin
+wasmtime = "0.10"
+plugin = { package = "text_editor_plugin", path = "./plugin" }
 
 # Tui
 ratatui = "0.28"
